@@ -1,0 +1,19 @@
+# Stage 1: Builder
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --target=/build/packages -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY --from=builder /build/packages /app/packages
+COPY app.py .
+
+ENV PYTHONPATH="/app/packages:$PYTHONPATH"
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
