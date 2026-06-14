@@ -1,0 +1,137 @@
+# ============================================================================
+# SparkApplication 配置文件
+# 用于在 Kubernetes 集群上通过 Spark Operator 提交 PySpark 任务
+# ============================================================================
+# 使用前提:
+#   1. 已安装 Spark Operator (Kubernetes CRD)
+#   2. 集群中存在 spark service account 及对应 RBAC 权限
+#   3. HWC (Huawei Cloud) SWR 镜像仓库中已推送 pyspark:3.4 镜像
+#   4. OBS 已通过 s3a 协议配置好访问密钥
+# ============================================================================
+
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: pyspark-analysis           # SparkApplication 名称，kubectl 操作时使用
+  namespace: default               # 部署的命名空间，可按需修改
+  labels:
+    app: pyspark-analysis          # 标签，便于筛选和管理
+    version: "1.0"
+
+spec:
+  # ---- 应用基本信息 ----
+  type: Python                     # 应用类型: Python (PySpark)
+  pythonVersion: "3"               # Python 大版本: 3
+  mode: cluster                    # 运行模式: cluster (Driver也运行在集群中)
+  sparkVersion: "3.4.0"           # Spark 版本号
+
+  # ---- 容器镜像 ----
+  # 注意: 请将 YOUR_ORG 替换为实际的 SWR 组织名
+  # 镜像需包含: PySpark, Hadoop AWS connector (s3a), 及其他依赖
+  image: swr.cn-north-4.myhuaweicloud.com/YOUR_ORG/pyspark:3.4
+  imagePullPolicy: Always          # 镜像拉取策略: Always/IfNotPresent/Never
+
+  # ---- 主应用程序文件 ----
+  # local:// 表示文件已在镜像内部 (通过 docker build COPY 进去)
+  # 也可使用 s3a:// 从 OBS 加载
+  mainApplicationFile: local:///opt/spark/work/analysis.py
+
+  # ---- 重启策略 ----
+  restartPolicy:
+    type: Never                    # Never: 失败不重启; OnFailure: 失败重试; Always: 始终重启
+
+  # ---- Driver 配置 ----
+  driver:
+    cores: 1                       # Driver CPU 核数
+    coreLimit: "1200m"             # CPU 硬限制（可选, 略大于 cores 以利用 burst）
+    memory: "1g"                   # Driver 内存请求
+    memoryOverhead: "512m"         # 额外的非堆内存开销（用于JVM、Python进程等）
+    serviceAccount: spark          # Kubernetes ServiceAccount（需预先创建并有RBAC权限）
+    labels:
+      version: "3.4.0"
+    # 环境变量配置
+    env:
+      - name: PYSPARK_PYTHON
+        value: "/usr/bin/python3"  # 指定 Python 解释器路径
+      - name: OBS_PATH
+        value: "s3a://your-bucket/douban-data/"   # OBS 数据路径
+    # 如果需要挂载 ConfigMap 或 Secret
+    # envFrom:
+    #   - secretRef:
+    #       name: obs-credentials   # OBS 访问密钥 (AccessKey/SecretKey)
+
+  # ---- Executor 配置 ----
+  executor:
+    cores: 1                       # 每个 Executor 的 CPU 核数
+    coreLimit: "1200m"
+    instances: 2                   # Executor 实例数量（任务并行度）
+    memory: "1g"                   # Executor 内存请求
+    memoryOverhead: "512m"
+    labels:
+      version: "3.4.0"
+    env:
+      - name: PYSPARK_PYTHON
+        value: "/usr/bin/python3"
+
+  # ---- Spark 配置项 (对应 spark-defaults.conf) ----
+  sparkConf:
+    # --- 基本配置 ---
+    "spark.app.name": "pyspark-analysis"
+    "spark.sql.adaptive.enabled": "true"           # 启用自适应查询执行
+    "spark.sql.adaptive.coalescePartitions.enabled": "true"
+
+    # --- S3A / OBS 配置 (华为云OBS通过S3A协议访问) ---
+    # 如果使用 OBS，请取消以下注释并填写正确的值
+    # "spark.hadoop.fs.s3a.endpoint": "obs.cn-north-4.myhuaweicloud.com"
+    # "spark.hadoop.fs.s3a.access.key": "YOUR_ACCESS_KEY"
+    # "spark.hadoop.fs.s3a.secret.key": "YOUR_SECRET_KEY"
+    # "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    # "spark.hadoop.fs.s3a.connection.ssl.enabled": "true"
+    # "spark.hadoop.fs.s3a.path.style.access": "true"
+
+    # --- 性能优化配置 ---
+    "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+    "spark.sql.shuffle.partitions": "4"            # Shuffle 分区数
+    "spark.dynamicAllocation.enabled": "false"     # 禁用动态分配，使用固定executor数
+
+    # --- 日志和监控配置 ---
+    "spark.eventLog.enabled": "true"
+    "spark.eventLog.dir": "file:///tmp/spark-events"  # 或 s3a://bucket/logs/
+
+    # --- Python 相关 ---
+    "spark.pyspark.python": "/usr/bin/python3"
+    "spark.pyspark.driver.python": "/usr/bin/python3"
+
+  # ---- 卷挂载 (可选) ----
+  # volumes:
+  #   - name: spark-data
+  #     persistentVolumeClaim:
+  #       claimName: spark-data-pvc   # PVC 用于持久化存储
+
+  # driver:
+  #   volumeMounts:
+  #     - name: spark-data
+  #       mountPath: /data
+
+  # executor:
+  #   volumeMounts:
+  #     - name: spark-data
+  #       mountPath: /data
+
+# ============================================================================
+# 提交命令示例:
+#   kubectl apply -f sparkapplication.yaml
+#
+# 查看状态:
+#   kubectl get sparkapplication pyspark-analysis
+#   kubectl describe sparkapplication pyspark-analysis
+#
+# 查看Pod:
+#   kubectl get pods -l sparkoperator.k8s.io/app-name=pyspark-analysis
+#
+# 查看Driver日志:
+#   kubectl logs <driver-pod-name>
+#
+# 删除:
+#   kubectl delete sparkapplication pyspark-analysis
+# ============================================================================

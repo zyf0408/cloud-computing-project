@@ -1,0 +1,17 @@
+# 大型数据文件（通过OBS或本地提供）
+douban_movies.csv
+
+# PDF 原始任务书
+课程设计任务书-final.pdf
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
