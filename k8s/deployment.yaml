@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: swr.cn-north-4.myhuaweicloud.com/YOUR_ORG/backend:v1
+        image: swr.cn-north-4.myhuaweicloud.com/hid_62icj9ew-afwakp/backend:v1
         ports:
         - containerPort: 5000
         resources:
@@ -64,6 +64,8 @@ spec:
         args:
         - --requirepass
         - $(REDIS_PASSWORD)
+        - --appendonly
+        - yes
         env:
         - name: REDIS_PASSWORD
           valueFrom:
@@ -79,3 +81,32 @@ spec:
       - name: redis-data
         persistentVolumeClaim:
           claimName: redis-data-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: swr.cn-north-4.myhuaweicloud.com/hid_62icj9ew-afwakp/frontend:v1
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config-volume
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: nginx-config-volume
+        configMap:
+          name: nginx-config

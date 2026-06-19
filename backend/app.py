@@ -29,14 +29,20 @@ else:
     )
 
 
+import socket
+
 @app.route("/api/ping")
 def ping():
     try:
         redis_client.ping()
-        redis_status = "connected"
+        redis_connected = True
     except Exception:
-        redis_status = "disconnected"
-    return jsonify({"status": "ok", "redis": redis_status})
+        redis_connected = False
+    return jsonify({
+        "hostname": socket.gethostname(),
+        "redis_connected": redis_connected,
+        "status": "ok"
+    })
 
 
 @app.route("/api/health")

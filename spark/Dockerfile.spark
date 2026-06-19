@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# 安装 JDK 21
+RUN apt-get update && apt-get install -y openjdk-21-jre-headless
+
+# 安装 Spark 3.5.2 (华为云镜像)
+ENV SPARK_HOME=/opt/spark
+RUN wget -q https://mirrors.huaweicloud.com/apache/spark/spark-3.5.2/spark-3.5.2-bin-hadoop3.tgz -O /tmp/spark.tgz && \
+    tar -xzf /tmp/spark.tgz -C /opt && \
+    mv /opt/spark-3.5.2-bin-hadoop3 ${SPARK_HOME} && \
+    rm /tmp/spark.tgz
+
+# OBS S3A JARs
+COPY hadoop-aws-3.3.4.jar aws-java-sdk-bundle-1.12.262.jar ${SPARK_HOME}/jars/
+
+# Python 依赖
+RUN pip install --no-cache-dir numpy==1.26.0
+
+# 工作目录
+WORKDIR /opt/spark/work
+
+# entrypoint (Spark K8s需要)
+COPY entrypoint.sh /opt/
+RUN chmod +x /opt/entrypoint.sh
+
+ENV PATH="${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}"

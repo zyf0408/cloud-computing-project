@@ -23,12 +23,12 @@ spec:
   type: Python                     # 应用类型: Python (PySpark)
   pythonVersion: "3"               # Python 大版本: 3
   mode: cluster                    # 运行模式: cluster (Driver也运行在集群中)
-  sparkVersion: "3.4.0"           # Spark 版本号
+  sparkVersion: "3.5.2"           # Spark 版本号
 
   # ---- 容器镜像 ----
   # 注意: 请将 YOUR_ORG 替换为实际的 SWR 组织名
   # 镜像需包含: PySpark, Hadoop AWS connector (s3a), 及其他依赖
-  image: swr.cn-north-4.myhuaweicloud.com/YOUR_ORG/pyspark:3.4
+  image: swr.cn-north-4.myhuaweicloud.com/hid_62icj9ew-afwakp/pyspark:v6
   imagePullPolicy: Always          # 镜像拉取策略: Always/IfNotPresent/Never
 
   # ---- 主应用程序文件 ----
@@ -48,13 +48,13 @@ spec:
     memoryOverhead: "512m"         # 额外的非堆内存开销（用于JVM、Python进程等）
     serviceAccount: spark          # Kubernetes ServiceAccount（需预先创建并有RBAC权限）
     labels:
-      version: "3.4.0"
+      version: "3.5.2"
     # 环境变量配置
     env:
       - name: PYSPARK_PYTHON
         value: "/usr/bin/python3"  # 指定 Python 解释器路径
       - name: OBS_PATH
-        value: "s3a://your-bucket/douban-data/"   # OBS 数据路径
+        value: "s3a://cc-course-2026/"   # OBS 数据路径
     # 如果需要挂载 ConfigMap 或 Secret
     # envFrom:
     #   - secretRef:
@@ -68,7 +68,7 @@ spec:
     memory: "1g"                   # Executor 内存请求
     memoryOverhead: "512m"
     labels:
-      version: "3.4.0"
+      version: "3.5.2"
     env:
       - name: PYSPARK_PYTHON
         value: "/usr/bin/python3"

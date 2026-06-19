@@ -1,0 +1,30 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: mpi-nonblocking
+spec:
+  slotsPerWorker: 2
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - image: swr.cn-north-4.myhuaweicloud.com/hid_62icj9ew-afwakp/mpipython:latest
+            name: mpi-launcher
+            command:
+            - mpirun
+            - --allow-run-as-root
+            - -np
+            - "2"
+            - python
+            - /opt/mpi/work/mpi_nonblocking.py
+    Worker:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - image: swr.cn-north-4.myhuaweicloud.com/hid_62icj9ew-afwakp/mpipython:latest
+            name: mpi-worker
